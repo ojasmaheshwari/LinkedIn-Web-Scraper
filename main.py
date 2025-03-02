@@ -17,11 +17,14 @@ import traceback
 
 # %%
 # Read excel file for linkedin profile urls
-dataframe = pd.read_excel('Assignment.xlsx')
+file_path = input("Enter file path to sheet containing profiles: ")
+file_path = file_path.strip()
+dataframe = pd.read_excel(file_path)
 rows = len(dataframe)
 
 profiles = []
-for i in range(rows):
+start_from_id = 0
+for i in range(start_from_id, rows):
     profile_url = dataframe.iloc[i]['LinkedIn URLs']
     profiles.append(profile_url)
 
@@ -30,7 +33,7 @@ for i in range(rows):
 # ### Open an output csv file to push results into
 
 # %%
-csv_file = open('Scraped_profiles.csv', mode='a', newline='')
+csv_file = open('scraped_output.csv', mode='a', newline='')
 column_names = ["LinkedIn URL", "Name", "Bio", "Experience", "Education"]
 writer = csv.DictWriter(csv_file, fieldnames=column_names)
 writer.writeheader()
@@ -46,8 +49,10 @@ driver = webdriver.Chrome(service = cService)
 # ### Account email and password for login
 
 # %%
-user_email = "YOUR_LINKEDIN_EMAIL_HERE"
-user_password = "YOUR_LINKEDIN_PASSWORD_HERE"
+user_email = input("Enter your linkedin email: ")
+user_email = user_email.strip()
+user_password = input("Enter your linkedin password: ")
+user_password = user_password.strip()
 
 # %% [markdown]
 # ### Login to LinkedIn
@@ -116,17 +121,20 @@ for profile_url in profiles:
             csv_file.flush()
             continue;
         
-        global experiences
-        global education
+        found_experiences = False
+        found_education = False
+
         for section in sections:
             if section.find('div', {'id' : 'experience'}):
                 experiences = section
+                found_experiences = True
             elif section.find('div', {'id' : 'education'}):
                 education = section
+                found_education = True
 
-        # Scrape experiences
         experience_data = []
-        if experiences:
+        # Try to scrape experiences, if something fails then log the error and experience_data is empty
+        if found_experiences:
             companies = experiences.find_all('div', {'class' : 'zSLireyqsWFZsKhRrJCPCIfVadBWViQ hvLOkFrYLvhhSPwCmWgiLpqjsfYlJkRQOMo PMuJZoDTtpXHdyfOGwaTHubPatVxRtab'})
 
             for company in companies:
@@ -143,7 +151,8 @@ for profile_url in profiles:
                     additional_info = additional_info.getText().strip()
                     role, company_name = company_name, additional_info
                     experience_data.append({
-                        company_name : [role]
+                        "Company" : company_name,
+                        "roles" : [role]
                     })
                 else:
                     roles = company.find('ul', {'class' : 'SCMYUuIWSpttAlXtxktgkPZIFJQMwugqGHJMPqM'})
@@ -156,12 +165,15 @@ for profile_url in profiles:
                             roles_list.append(role)
                 
                     experience_data.append({
-                        company_name : roles_list
+                        "company" : company_name,
+                        "roles" : roles_list
                     })
+        else:
+            print("Could not find experience section for profile" + profile_url)
 
-        # Scrape education history
         education_data = []
-        if education:
+        # Scrape education history, if something fails then education_data is []
+        if found_education:
             institutes = education.find_all('div', {'class' : 'zSLireyqsWFZsKhRrJCPCIfVadBWViQ hvLOkFrYLvhhSPwCmWgiLpqjsfYlJkRQOMo PMuJZoDTtpXHdyfOGwaTHubPatVxRtab'})
 
             for institute in institutes:
@@ -177,8 +189,11 @@ for profile_url in profiles:
                     degree = 'NA'
                     
                 education_data.append({
-                    institute_name : degree 
+                    "institute" : institute_name,
+                    "degree" : degree
                 })
+        else:
+            print("Could not find education section for profile " + profile_url)
 
         # Write output into CSV file
         writer.writerow({
